@@ -530,10 +530,6 @@ def main() -> int:
                 if args.episodes and episode >= args.episodes:
                     break
                 seed += 1
-                if args.pool:
-                    env.close()
-                    env, spec = open_env()
-                    pygame.display.set_caption(_caption())
                 obs, info = env.reset(seed=seed)
                 policy.reset()
                 steps, ret = 0, 0.0

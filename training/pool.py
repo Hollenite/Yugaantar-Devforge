@@ -1,4 +1,4 @@
-"""Freedoom-first training map pool. Generated S0–S3 maps are a minority sprinkle."""
+"""Freedoom-only training map pool (generated S0–S3 stay available if generated_frac>0)."""
 
 from __future__ import annotations
 
@@ -19,9 +19,9 @@ from doom_env.wrapper import IWAD
 from training.mapgen.layout import build
 from training.mapgen.tiers import STAGES
 
-GENERATED_FRAC = 0.15
+GENERATED_FRAC = 0.0
 FREEDOOM_TICKS = 4200
-TRAIN_MAPS = tuple(f"MAP{i:02d}" for i in range(1, 25))
+TRAIN_MAPS = tuple(f"MAP{i:02d}" for i in range(1, 33))
 VAL_MAPS = tuple(f"MAP{i:02d}" for i in range(25, 33))
 GENERATED_STAGES = tuple(STAGES)
 GENERATED_TRAIN_SEEDS = (0, 10_000)
