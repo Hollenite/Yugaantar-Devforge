@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-from mapgen import CELL, Level, generate, write_level
+from levelgen import CELL, Level, generate, write_level
 
 os.environ.setdefault("ALSOFT_DRIVERS", "null")
 

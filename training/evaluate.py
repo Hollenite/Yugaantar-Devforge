@@ -83,7 +83,7 @@ def main():
     sys.path.insert(0, str(ROOT / "submission"))
     from denv import LevelNav, load_wad_pool
     from doom_env import make_env
-    from mapgen import generate, write_level
+    from levelgen import generate, write_level
 
     policy = load_agent() if a.policy == "agent" else a.policy
     rows = defaultdict(list)

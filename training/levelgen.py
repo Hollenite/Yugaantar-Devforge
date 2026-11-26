@@ -16,7 +16,7 @@ The generator also returns the cell grid and the key/exit cells, so the training
 geodesic distances for reward shaping. That information is used only during training; the agent
 itself only ever sees the official doom_env observations.
 
-    uv run python training/mapgen.py --tier 3 --seed 7 --out /tmp/t3.wad
+    uv run python training/levelgen.py --tier 3 --seed 7 --out /tmp/t3.wad
 """
 
 from __future__ import annotations

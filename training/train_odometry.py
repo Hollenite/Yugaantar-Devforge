@@ -51,7 +51,7 @@ def collect(args):
     import torch
     from brain.memory import odometry_features
     from doom_env import make_env
-    from mapgen import generate, write_level
+    from levelgen import generate, write_level
 
     rng = np.random.default_rng(seed)
     out = {k: [] for k in ("buttons", "mom", "vel", "turnheld", "prev_rays", "rays", "disp")}

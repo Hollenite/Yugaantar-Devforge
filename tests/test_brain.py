@@ -60,7 +60,7 @@ def test_action_mapping_roundtrip():
 @pytest.mark.parametrize("tier", [0, 1, 2, 3, 4])
 def test_generated_levels_load(tmp_path, tier):
     from doom_env import make_env
-    from mapgen import generate, write_level
+    from levelgen import generate, write_level
 
     lv = generate(tier, 3)
     env = make_env(str(write_level(lv, tmp_path / "m.wad")), render_buffers=False)

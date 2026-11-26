@@ -4,7 +4,7 @@ Everything here is training-time code. The submitted agent (`submission/agent.py
 only uses the official observations and its trained weights.
 
 ```
-mapgen.py          procedural UDMF levels for 5 curriculum tiers (rooms, corridors, doors, keycards,
+levelgen.py        procedural UDMF levels for 5 curriculum tiers (rooms, corridors, doors, keycards,
                    locked doors, exit pads/switches, monsters, pickups) + the cell grid for shaping
 denv.py            TrainEnv: level sampling, reward shaping (exit / progression / exploration / combat,
                    geodesic potential), and the privileged Teacher used for distillation
