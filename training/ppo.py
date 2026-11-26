@@ -151,6 +151,8 @@ def main():
                     help="fraction of episodes where the teacher drives the first K steps, then hands over to the "
                          "policy (gives the policy practice in late-level states: holding a key, near a locked door)")
     ap.add_argument("--rollin-max", type=int, default=450, help="K ~ U(20, rollin-max) decisions")
+    ap.add_argument("--solo-prob", type=float, default=0.0,
+                    help="fraction of episodes the policy plays entirely alone (no teacher mixing): practice + honest metrics")
     ap.add_argument("--sched-start", type=int, default=0, help="update at which the beta/il schedules start")
     ap.add_argument("--tier-max", type=float, default=0.6, help="cap on any tier's share of training levels")
     ap.add_argument("--tier-min", type=float, default=0.05)
@@ -240,6 +242,7 @@ def main():
         return torch.where(torch.rand(n, generator=gen) < a.rollin_prob, k, torch.zeros_like(k))
 
     rollin = new_rollin(N)              # teacher-driven decisions left at the start of each episode
+    solo_ep = (torch.rand(N, generator=gen) < a.solo_prob) & (rollin == 0)  # whole episode without the teacher
     ep_teacher = torch.zeros(N, dtype=torch.bool)  # did the teacher act at all in this episode?
     best_score = -1.0
 
@@ -262,7 +265,7 @@ def main():
                 pc = prev_comps * (~fresh).long().unsqueeze(1)
                 logits, value, h = net.step(obs_d, maps.to(device), pc.to(device), h)
                 pol = sample(logits.cpu(), generator=gen)
-                use_t = ((torch.rand(N, generator=gen) < beta) | (rollin > 0)) & tok
+                use_t = (((torch.rand(N, generator=gen) < beta) & ~solo_ep) | (rollin > 0)) & tok
                 exec_c = torch.where(use_t.unsqueeze(1), tch, pol)
                 lp = log_prob(logits.cpu(), exec_c)
             for k, v in obs.items():
@@ -300,7 +303,9 @@ def main():
                     stats[f"solo_t{inf['tier']}"].append(inf["exit"])
             if done.any():
                 ep_teacher[done] = False
-                rollin[done] = new_rollin(int(done.sum()))
+                nd = int(done.sum())
+                rollin[done] = new_rollin(nd)
+                solo_ep[done] = (torch.rand(nd, generator=gen) < a.solo_prob) & (rollin[done] == 0)
 
         # ---- returns / advantages
         with torch.no_grad():
