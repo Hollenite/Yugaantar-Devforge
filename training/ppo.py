@@ -187,7 +187,7 @@ def main():
     start_update = 0
     tier_w = np.array([float(x) for x in a.tiers.split(",")])
     if a.resume:
-        ck = torch.load(a.resume, map_location=device)
+        ck = torch.load(a.resume, map_location=device, weights_only=False)  # our own checkpoint
         net.load_state_dict(ck["model"])
         if "opt" in ck:
             opt.load_state_dict(ck["opt"])
@@ -376,7 +376,7 @@ def main():
         log_f.flush()
 
         if (update + 1) % a.save_every == 0 or update == a.updates - 1:
-            ck = {"model": net.state_dict(), "opt": opt.state_dict(), "update": update + 1, "tier_weights": list(tier_w),
+            ck = {"model": net.state_dict(), "opt": opt.state_dict(), "update": update + 1, "tier_weights": [float(x) for x in tier_w],
                   "args": vars(a)}
             torch.save(ck, run_dir / "latest.pt")
             if (update + 1) % (a.save_every * 4) == 0:
