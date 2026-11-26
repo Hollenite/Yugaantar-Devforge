@@ -225,3 +225,4 @@ _vizdoom.ini
 
 # Procedural training maps (regenerate with python -m training.mapgen.generate)
 maps/generated/
+.mapgen_tmp/

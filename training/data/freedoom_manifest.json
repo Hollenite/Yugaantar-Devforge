@@ -1,0 +1,197 @@
+{
+  "wad": "freedoom2.wad",
+  "maps": [
+    {
+      "map": "MAP01",
+      "sector_count": 211,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP02",
+      "sector_count": 227,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP03",
+      "sector_count": 315,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP04",
+      "sector_count": 139,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP05",
+      "sector_count": 185,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP06",
+      "sector_count": 109,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP07",
+      "sector_count": 233,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP08",
+      "sector_count": 238,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP09",
+      "sector_count": 347,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP10",
+      "sector_count": 423,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP11",
+      "sector_count": 648,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP12",
+      "sector_count": 863,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP13",
+      "sector_count": 243,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP14",
+      "sector_count": 198,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP15",
+      "sector_count": 777,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP16",
+      "sector_count": 207,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP17",
+      "sector_count": 198,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP18",
+      "sector_count": 278,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP19",
+      "sector_count": 289,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP20",
+      "sector_count": 414,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP21",
+      "sector_count": 196,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP22",
+      "sector_count": 355,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP23",
+      "sector_count": 539,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP24",
+      "sector_count": 195,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP25",
+      "sector_count": 666,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP26",
+      "sector_count": 348,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP27",
+      "sector_count": 503,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP28",
+      "sector_count": 589,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP29",
+      "sector_count": 131,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP30",
+      "sector_count": 27,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP31",
+      "sector_count": 86,
+      "load_ok": true,
+      "error": null
+    },
+    {
+      "map": "MAP32",
+      "sector_count": 146,
+      "load_ok": true,
+      "error": null
+    }
+  ]
+}
