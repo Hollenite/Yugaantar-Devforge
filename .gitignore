@@ -223,6 +223,9 @@ _vizdoom.ini
 # Local validator / scorer artifacts
 *.lmp
 
+# Training outputs (checkpoints, logs)
+training/runs/
+
 # Procedural training maps (regenerate with python -m training.mapgen.generate)
 maps/generated/
 .mapgen_tmp/

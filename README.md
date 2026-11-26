@@ -8,6 +8,12 @@ Starter template for **Yugaantar 2026 · DevForge — Track 1: "Can It Play DOOM
 
 No dataset is provided. Your agent learns by interacting with the engine.
 
+## Our agent (Team Yugaantar)
+
+- **Brief (2 pages):** [`brief/Yugaantar_DOOM_brief.pdf`](brief/Yugaantar_DOOM_brief.pdf): USP, architecture, spatial memory, training pipeline, results.
+- **Agent:** `submission/agent.py` (`DoomAgent`), network in `submission/brain/`, weights in `submission/weights/` (Git LFS).
+- **Training:** `training/ppo.py` (recurrent PPO + privileged-teacher distillation), `training/levelgen.py` (procedural levels), `training/select_best.py` (held-out model selection).
+
 ## Quickstart
 
 1. Click **"Use this template"** on GitHub to create your team's (public) repository.
