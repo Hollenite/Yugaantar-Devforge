@@ -1,12 +1,12 @@
-# Can It Play DOOM? — Team Yugaantar
+# Can It Play DOOM? — Team We Who Remains - Yugaantar
 
 Yugaantar 2026 · DevForge Track 1. A **1.55M-parameter** agent that plays unseen Doom maps from ego-centric rays, entities and vitals — no god-view, no `A*`.
 
 Weights and code live in this repo. Evaluation uses the official `doom_env` wrapper, vanilla ViZDoom, and **hidden** maps.
 
-![Trained agent, tier 1 combat](docs/demo/poster.jpg)
+[![Trained agent demo (autoplaying loop). Click for the 48s MP4.](docs/demo/preview.gif)](docs/demo/showcase.mp4)
 
-**Demo (48s highlights):** [docs/demo/showcase.mp4](docs/demo/showcase.mp4) — [clip list](docs/demo/README.md)
+**Demo (48s, loops in the README):** [docs/demo/showcase.mp4](docs/demo/showcase.mp4) — [clip list](docs/demo/README.md)
 
 Left: RGB. Centre: the agent’s own EgoMap. Right: rays / entities / vitals. Label in the recording: `TRAINED AGENT (v4, update 2600)` on **unseen** generated tiers.
 

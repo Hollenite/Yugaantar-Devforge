@@ -2,7 +2,7 @@
 
 Phone capture of the trained policy (`TRAINED AGENT v4, update 2600`) in `record_demo.py --agent`: RGB, EgoMap, rays.
 
-**Showcase reel:** [showcase.mp4](showcase.mp4) (48s)
+**README loop:** [preview.gif](preview.gif) (48s, autoplays on GitHub) · **MP4:** [showcase.mp4](showcase.mp4)
 
 | Clip | What it shows |
 | --- | --- |
