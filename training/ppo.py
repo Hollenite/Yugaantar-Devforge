@@ -122,6 +122,61 @@ class VecEnv:
             p.join(timeout=5)
 
 
+# ---------------------------------------------------------------------------------- mirror augmentation
+# The agent's world is left-right symmetric: mirroring every observation and swapping left/right actions gives another
+# valid experience. Rays are spaced evenly CCW from straight ahead (ray i <-> ray -i), entity features are
+# (dist, sin a, cos a, v_fwd, v_right), vitals[15] is the rightward velocity and EgoMap crops have "right" along the
+# last axis. Strafe and turn heads have (none, a, b) with a/b opposite directions.
+def mirror_obs(o: dict) -> dict:
+    import torch
+
+    n = o["ray_d"].shape[-1]
+    idx = (-torch.arange(n, device=o["ray_d"].device)) % n
+    out = dict(o)
+    out["ray_d"] = o["ray_d"][..., idx]
+    out["ray_h"] = o["ray_h"][..., idx]
+    f = o["ent_f"].clone()
+    f[..., 1] = -f[..., 1]
+    f[..., 4] = -f[..., 4]
+    out["ent_f"] = f
+    v = o["vitals"].clone()
+    v[..., 15] = -v[..., 15]
+    out["vitals"] = v
+    return out
+
+
+def mirror_comps(c):
+    c = c.clone()
+    for i in (1, 2):  # strafe, turn
+        x = c[..., i]
+        c[..., i] = (x == 1) * 2 + (x == 2) * 1
+    return c
+
+
+def mirror_logits(lg):
+    from brain.model import HEAD_SIZES
+
+    import torch
+
+    parts = list(torch.split(lg, HEAD_SIZES, dim=-1))
+    for i in (1, 2):
+        parts[i] = parts[i][..., [0, 2, 1]]
+    return torch.cat(parts, -1)
+
+
+def head_kl(target_logits, logits):
+    """sum over heads KL(softmax(target) || softmax(logits)), per element."""
+    from brain.model import HEAD_SIZES
+
+    import torch
+
+    kl = 0
+    for t, l in zip(torch.split(target_logits, HEAD_SIZES, -1), torch.split(logits, HEAD_SIZES, -1)):
+        lp_t = torch.log_softmax(t.float(), -1)
+        kl = kl + (lp_t.exp() * (lp_t - torch.log_softmax(l.float(), -1))).sum(-1)
+    return kl
+
+
 # ---------------------------------------------------------------------------------- trainer
 def linear(start, end, frac):
     return start + (end - start) * min(max(frac, 0.0), 1.0)
@@ -162,6 +217,12 @@ def main():
                          "(training/select_best.py) and keep the best one as <run>/best_eval_policy.pt")
     ap.add_argument("--eval-episodes", type=int, default=6, help="maps per tier for --eval-every")
     ap.add_argument("--eval-workers", type=int, default=3)
+    ap.add_argument("--mirror", type=float, default=0.0,
+                    help="weight of the left-right mirror augmentation (DrAC-style): imitation of mirrored teacher "
+                         "actions on mirrored observations + KL consistency between a state and its mirror image")
+    ap.add_argument("--mirror-warmup", type=int, default=8, help="GRU warm-up steps excluded from the mirror loss")
+    ap.add_argument("--lr-end", type=float, default=-1.0, help="anneal the learning rate linearly to this value "
+                                                               "by --updates (-1 = constant)")
     ap.add_argument("--il-start", type=float, default=1.0)
     ap.add_argument("--il-end", type=float, default=0.05)
     ap.add_argument("--il-updates", type=int, default=1500)
@@ -257,6 +318,10 @@ def main():
 
     for update in range(start_update, a.updates):
         t_start = time.time()
+        if a.lr_end >= 0:
+            lr_now = linear(a.lr, a.lr_end, (update - start_update) / max(1, a.updates - start_update))
+            for g_ in opt.param_groups:
+                g_["lr"] = lr_now
         su = update - a.sched_start
         beta = linear(a.beta_start, a.beta_end, su / max(1, a.beta_updates))
         il_coef = linear(a.il_start, a.il_end, su / max(1, a.il_updates))
@@ -378,6 +443,17 @@ def main():
                 tmask = g(B["tok"]).float()
                 il = (imitation_loss(logits, g(B["tch"])) * tmask).sum() / tmask.sum().clamp_min(1)
                 loss = pg + a.vf * v_loss - a.ent * ent + il_coef * il
+                if a.mirror > 0:
+                    # mirrored chunk, GRU started from zeros (the stored h0 belongs to the unmirrored past) and warmed up
+                    lg_m, v_m = net.unroll(mirror_obs(o), g(B["maps"]).float().flip(-1) / 255, mirror_comps(g(B["prev"])),
+                                           torch.zeros_like(h0_all[cs, es]).to(device), g(B["start"]))
+                    warm = (torch.arange(L, device=device) >= a.mirror_warmup).float().unsqueeze(1)
+                    mt = tmask * warm
+                    il_m = (imitation_loss(lg_m, mirror_comps(g(B["tch"]))) * mt).sum() / mt.sum().clamp_min(1)
+                    kl_m = (head_kl(mirror_logits(logits.detach()), lg_m) * warm).sum() / (warm.sum() * lg_m.shape[1])
+                    vc_m = (0.5 * (v_m - value.detach()).pow(2) * warm).sum() / (warm.sum() * lg_m.shape[1])
+                    loss = loss + a.mirror * (il_coef * il_m + kl_m + a.vf * vc_m)
+                    losses["mir"].append(kl_m.item())
                 opt.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(net.parameters(), 0.5)
@@ -411,6 +487,7 @@ def main():
                 + " ".join(f"t{t}:{m.get(f'exit_t{t}', float('nan')):.2f}" for t in range(5))
                 + f" | solo {m.get('solo_exit', float('nan')):.2f} "
                 + " ".join(f"s{t}:{m.get(f'solo_t{t}', float('nan')):.2f}" for t in range(1, 5))
+                + (f" | mir {lm['mir']:.3f}" if "mir" in lm else "")
                 + f" | pg {lm['pg']:.3f} v {lm['v']:.3f} ent {lm['ent']:.2f} il {lm['il']:.3f} kl {lm['kl']:.4f}")
         print(line, flush=True)
         logw.writerow([update, fps, beta, il_coef, *[m.get(k, float('nan')) for k in
