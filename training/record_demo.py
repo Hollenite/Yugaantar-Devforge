@@ -40,6 +40,41 @@ def _make_rgb(*a, **k):
 doom_env.make_env = _make_rgb
 
 
+def draw_egomap(surf, mem, font, view_cells: int = 96):
+    """Draw the agent's OWN memory map (the EgoMap DoomNet reads), centred on its estimated pose."""
+    import math
+
+    g = mem.grid[0].cpu().numpy()  # (8, G, G) indexed [ch, y, x]
+    G = g.shape[1]
+    x0, y0, hd = (float(v) for v in mem.pose[0].cpu())
+    cx, cy = int(x0 / mem.cell + G / 2), int(y0 / mem.cell + G / 2)
+    h = view_cells // 2
+    ys, xs = np.clip(np.arange(cy - h, cy + h), 0, G - 1), np.clip(np.arange(cx - h, cx + h), 0, G - 1)
+    win = g[:, ys][:, :, xs]
+    img = np.full((view_cells, view_cells, 3), 14, np.uint8)
+    cols = [("wall", 1, (225, 225, 230)), ("door", 2, (235, 190, 60)), ("locked", 3, (235, 60, 50)),
+            ("item", 4, (80, 200, 90)), ("enemy", 5, (255, 140, 0)), ("key", 6, (220, 80, 240)),
+            ("trail", 7, (40, 140, 160))]
+    img[win[0] > 0.5] = (62, 62, 72)  # free space it has seen
+    for ch in (7, 4, 2, 1, 3, 5, 6):
+        img[win[ch] > 0.5] = next(c for _, k, c in cols if k == ch)
+    img = img[::-1]  # world y up
+    S_ = surf.get_width()
+    oy = (surf.get_height() - S_) // 2
+    surf.fill((14, 14, 18))
+    pic = pygame.surfarray.make_surface(np.ascontiguousarray(img.swapaxes(0, 1)))
+    surf.blit(pygame.transform.scale(pic, (S_, S_)), (0, oy))
+    c = S_ / 2
+    pts = [(c + math.cos(hd + a) * r, oy + c - math.sin(hd + a) * r) for a, r in ((0, 14), (2.5, 8), (-2.5, 8))]
+    pygame.draw.polygon(surf, (255, 255, 255), pts)
+    surf.blit(font.render("what the agent remembers (its own map)", True, (235, 235, 240)), (8, 6))
+    x = 8
+    for name, _, col in cols:
+        pygame.draw.rect(surf, col, (x, surf.get_height() - 18, 10, 10))
+        surf.blit(font.render(name, True, (200, 200, 205)), (x + 13, surf.get_height() - 22))
+        x += 13 + font.size(name)[0] + 8
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", action="store_true", help="show a window instead of writing an MP4")
@@ -50,12 +85,22 @@ def main() -> int:
     ap.add_argument("--max-steps", type=int, default=1200)
     ap.add_argument("--scale", type=int, default=3)
     ap.add_argument("--out", default="demo.mp4")
+    ap.add_argument("--agent", default="", help="play with the trained DoomAgent using this checkpoint "
+                                                 "(e.g. submission/weights/policy.pt) instead of the teacher; "
+                                                 "the middle panel then shows the agent's own EgoMap memory")
+    ap.add_argument("--label", default="", help="caption for the agent (e.g. 'v4, update 2600')")
     args = ap.parse_args()
 
     if args.episodes == 0 and not args.live:
         args.episodes = 1
     w = [1.0] * 5 if args.tier < 0 else [float(i == args.tier) for i in range(5)]
     env = denv.TrainEnv(0, args.seed, tier_weights=w)
+    agent = None
+    if args.agent:
+        os.environ["DOOM_AGENT_POLICY"] = str(Path(args.agent).resolve())
+        from agent import DoomAgent
+
+        agent = DoomAgent(None, None, "cpu")
     S = W.S
     pygame.init()
     game_w, game_h = S.SCREEN_WIDTH * args.scale, S.SCREEN_HEIGHT * args.scale
@@ -86,6 +131,8 @@ def main() -> int:
     ep = 0
     while not quit_ and (args.episodes == 0 or ep < args.episodes):
         obs = env.reset()
+        if agent is not None:
+            agent.reset()
         steps, ret = 0, 0.0
         info = {}
         skip = False
@@ -103,8 +150,11 @@ def main() -> int:
                 if paused:
                     clock.tick(20)
                     continue
-            comps, _ok = env.teacher_action()
-            buttons = comps_to_buttons(torch.tensor(np.asarray(comps)[None]))[0].numpy()
+            if agent is not None:
+                buttons = agent.act(obs)
+            else:
+                comps, _ok = env.teacher_action()
+                buttons = comps_to_buttons(torch.tensor(np.asarray(comps)[None]))[0].numpy()
             obs, r, done, info = env.step(buttons)
             steps += 1
             ret += r
@@ -116,14 +166,18 @@ def main() -> int:
             screen.fill((20, 20, 26))
             frame = pygame.surfarray.make_surface(np.ascontiguousarray(obs["rgb"].swapaxes(0, 1)))
             screen.blit(pygame.transform.scale(frame, (game_w, game_h)), (0, 0))
-            W.draw_pov_3d(geo, obs, priv, sectors, font)
+            if agent is not None:
+                draw_egomap(geo, agent.perception.mem, font)
+            else:
+                W.draw_pov_3d(geo, obs, priv, sectors, font)
             screen.blit(geo, (game_w, 0))
             W.draw_data_panel(data, obs, priv, info, steps, ret, font)
             W.draw_radar(radar, obs, font)
             data.blit(radar, (0, game_h - radar.get_height()))
             screen.blit(data, (game_w + geo_w, 0))
             screen.blit(font.render(W.vitals_text(obs, info, steps, ret), True, (230, 230, 235)), (8, game_h + 6))
-            screen.blit(font.render(f"teacher bot  |  generated tier-{env.tier} level  |  last: {last}",
+            who = f"TRAINED AGENT {args.label}".strip() if agent is not None else "teacher bot"
+            screen.blit(font.render(f"{who}  |  unseen tier-{env.tier} level  |  last: {last}",
                                     True, (190, 190, 200)), (8, game_h + 28))
             if args.live:
                 pygame.display.flip()
