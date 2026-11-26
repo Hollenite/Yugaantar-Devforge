@@ -1,4 +1,4 @@
-# Can It Play DOOM? — Team Yugaantar
+# Can It Play DOOM? — Team We Who Remains - Yugaantar
 
 Yugaantar 2026 · DevForge Track 1. A **1.55M-parameter** agent that plays unseen Doom maps from ego-centric rays, entities and vitals — no god-view, no `A*`.
 
