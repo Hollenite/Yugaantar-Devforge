@@ -37,11 +37,13 @@ The policy is a real trained net, not the random baseline. It is **not** a full 
 git lfs install
 uv sync
 uv run python validate.py
-# watch it (Freedoom mix; R = new map)
+# held-out generated maps (the submitted weights)
+uv run python training/evaluate.py --policy agent --episodes 5
+# play yourself (WASD + mouse; R = new map)
 uv run python training/watch_random.py --policy human --pool
 ```
 
-`DoomAgent` loads `submission/weights/policy.pt`. Set `DOOM_AGENT_GREEDY=1` for deterministic eval.
+`DoomAgent` loads `submission/weights/policy.pt`. Set `DOOM_AGENT_GREEDY=1` for deterministic eval. The 89s reel is a live viewer run of that policy, not a human.
 
 ## Train
 
