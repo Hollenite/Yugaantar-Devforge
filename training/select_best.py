@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "training"), str(ROOT / "env"), str(ROOT / "submission")]
 os.environ.setdefault("ALSOFT_DRIVERS", "null")
 
-SELECT_SEED = 10 ** 12 + 10_000  # disjoint from training seeds and from evaluate.py's report maps
+SELECT_SEED = int(os.environ.get("SELECT_SEED", 10 ** 12 + 10_000))  # env override = fresh map set; disjoint from training seeds and from evaluate.py's report maps
 TIER_W = {0: 0.5, 1: 1.0, 2: 1.5, 3: 2.0, 4: 2.5}
 WAD_W = 1.5
 
