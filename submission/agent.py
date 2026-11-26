@@ -25,7 +25,8 @@ sys.path.insert(0, str(SUBMISSION_DIR))
 from brain.memory import OdoNet  # noqa: E402
 from brain.model import DoomNet, Perception, comps_to_buttons, flatten_obs, sample, stack_obs  # noqa: E402
 
-POLICY = WEIGHTS_DIR / "policy.pt"
+# DOOM_AGENT_POLICY lets training/evaluate.py score an intermediate checkpoint; the default is the shipped file.
+POLICY = Path(os.environ.get("DOOM_AGENT_POLICY", WEIGHTS_DIR / "policy.pt"))
 ODONET = WEIGHTS_DIR / "odonet.pt"
 
 
@@ -45,10 +46,10 @@ class DoomAgent:
             if ck.get("odonet") is not None:
                 odonet = OdoNet()
                 odonet.load_state_dict(ck["odonet"])
-        elif ODONET.exists():
+        if odonet is None and ODONET.exists():
             odonet = OdoNet()
             odonet.load_state_dict(torch.load(ODONET, map_location="cpu"))
-        else:
+        if ck is None:
             print("[DoomAgent] warning: no trained weights found in", WEIGHTS_DIR, file=sys.stderr)
         if odonet is not None:
             odonet.eval()
