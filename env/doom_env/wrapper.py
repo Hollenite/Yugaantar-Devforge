@@ -47,12 +47,18 @@ class DoomEnv(gym.Env):
         episode_ticks: int = DEFAULT_EPISODE_TICKS,
         render_buffers: bool = True,
         render_mode: str | None = None,
+        frame_skip: int | None = None,
+        analog_look: bool = False,
     ):
         """
         wad: path to a PWAD with the map (e.g. "maps/two_rooms.wad").
         map_name: map lump inside the WAD.
         episode_ticks: game tics before truncation (35 tics = 1 second of game time).
         render_buffers: False skips filling `rgb`/`depth` (zeros, same spaces) for faster training.
+        frame_skip: tics per step. Default is the contract value (4). The human viewer uses 1
+        so mouse-look can update every tic; evaluation still uses 4.
+        analog_look: extra TURN_LEFT_RIGHT_DELTA for the human viewer (yaw only; vanilla Doom
+        has no look-up/down). The gym action_space stays MultiBinary(9); evaluation does not use this.
         """
         self.observation_space = S.observation_space()
         self.action_space = S.action_space()
@@ -61,6 +67,8 @@ class DoomEnv(gym.Env):
         self.map_name = map_name.upper()
         self.episode_ticks = int(episode_ticks)
         self.render_buffers = render_buffers
+        self.frame_skip = S.FRAME_SKIP if frame_skip is None else max(1, int(frame_skip))
+        self.analog_look = bool(analog_look)
         self.mapinfo = load_mapinfo(self.wad, self.map_name)
 
         g = vd.DoomGame()
@@ -84,7 +92,10 @@ class DoomEnv(gym.Env):
         g.set_render_corpses(True)
         g.set_objects_info_enabled(True)
         g.set_sectors_info_enabled(True)
-        g.set_available_buttons([getattr(vd.Button, b) for b in S.BUTTONS])
+        buttons = [getattr(vd.Button, b) for b in S.BUTTONS]
+        if self.analog_look:
+            buttons += [vd.Button.TURN_LEFT_RIGHT_DELTA]
+        g.set_available_buttons(buttons)
         g.set_available_game_variables(GAME_VARIABLES)
         g.set_episode_timeout(self.episode_ticks)
         g.init()
@@ -118,6 +129,19 @@ class DoomEnv(gym.Env):
         return obs, self._info()
 
     def step(self, action):
+        buttons = self._to_buttons(action)
+        if self.analog_look:
+            buttons = buttons + [0]
+        return self._advance(buttons)
+
+    def step_human(self, action, yaw_delta: int = 0):
+        """Viewer-only: 9 binary buttons plus analog yaw. No pitch (vanilla Doom)."""
+        if not self.analog_look:
+            raise RuntimeError("step_human requires analog_look=True")
+        buttons = self._to_buttons(action) + [int(yaw_delta)]
+        return self._advance(buttons)
+
+    def _advance(self, buttons: list[int]):
         if self._closed:
             raise RuntimeError("environment is closed")
         g = self._game
@@ -125,9 +149,8 @@ class DoomEnv(gym.Env):
             raise RuntimeError("call reset() before step()")
         if g.is_episode_finished():
             raise RuntimeError("episode finished; call reset()")
-        buttons = self._to_buttons(action)
         kills_before = self._last_vars[_V[GV.KILLCOUNT]]
-        g.make_action(buttons, S.FRAME_SKIP)
+        g.make_action(buttons, self.frame_skip)
 
         terminated = truncated = False
         reward = 0.0
