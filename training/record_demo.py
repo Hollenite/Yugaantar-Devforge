@@ -1,11 +1,12 @@
-"""Watch (or record to MP4) the privileged teacher bot playing generated levels, drawn with
-the watch_random viewer (RGB | 3D ray/sector view | data panel + radar).
+"""Watch (or record to MP4) generated levels with the watch_random viewer.
 
-    uv run python training/record_demo.py --live                      # window, plays by itself forever
-    uv run python training/record_demo.py --live --tier 3 --fps 18    # only tier-3 levels, faster
-    uv run python training/record_demo.py --tier 3 --seed 5 --out demo.mp4   # headless MP4
+    uv run python training/record_demo.py --live --agent submission/weights/policy.pt
+    uv run python training/record_demo.py --live                      # privileged teacher
+    uv run python training/record_demo.py --live --tier 3 --fps 18
+    uv run python training/record_demo.py --tier 3 --seed 5 --out demo.mp4
 
-The teacher sees the whole map (training-only scaffolding); it is NOT the submission agent.
+`--agent` plays the submitted DoomAgent and draws its own EgoMap in the middle panel.
+Without it, the privileged teacher drives (training-only; it sees the whole map).
 """
 from __future__ import annotations
 

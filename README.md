@@ -6,7 +6,7 @@ Weights and code live in this repo. Evaluation uses the official `doom_env` wrap
 
 ![Trained agent, tier 1 combat](docs/demo/poster.jpg)
 
-**Demo (89s highlights):** [docs/demo/showcase.mp4](docs/demo/showcase.mp4) — [clip list](docs/demo/README.md)
+**Demo (48s highlights):** [docs/demo/showcase.mp4](docs/demo/showcase.mp4) — [clip list](docs/demo/README.md)
 
 Left: RGB. Centre: the agent’s own EgoMap. Right: rays / entities / vitals. Label in the recording: `TRAINED AGENT (v4, update 2600)` on **unseen** generated tiers.
 
@@ -37,13 +37,15 @@ The policy is a real trained net, not the random baseline. It is **not** a full 
 git lfs install
 uv sync
 uv run python validate.py
-# held-out generated maps (the submitted weights)
+# watch the trained agent (RGB | EgoMap | rays)
+uv run python training/record_demo.py --live --agent submission/weights/policy.pt --label "(v4, update 2600)"
+# held-out generated maps
 uv run python training/evaluate.py --policy agent --episodes 5
 # play yourself (WASD + mouse; R = new map)
 uv run python training/watch_random.py --policy human --pool
 ```
 
-`DoomAgent` loads `submission/weights/policy.pt`. Set `DOOM_AGENT_GREEDY=1` for deterministic eval. The 89s reel is a live viewer run of that policy, not a human.
+`DoomAgent` loads `submission/weights/policy.pt`. Set `DOOM_AGENT_GREEDY=1` for deterministic eval. The 48s reel is combat → rooms → red key, not empty-room bootstrap or the yellow-lock stall.
 
 ## Train
 
