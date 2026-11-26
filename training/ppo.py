@@ -153,9 +153,15 @@ def main():
     ap.add_argument("--rollin-max", type=int, default=450, help="K ~ U(20, rollin-max) decisions")
     ap.add_argument("--solo-prob", type=float, default=0.0,
                     help="fraction of episodes the policy plays entirely alone (no teacher mixing): practice + honest metrics")
-    ap.add_argument("--sched-start", type=int, default=0, help="update at which the beta/il schedules start")
+    ap.add_argument("--sched-start", type=int, default=0,
+                    help="update at which the beta/il schedules start (-1 = the update we resume from)")
     ap.add_argument("--tier-max", type=float, default=0.6, help="cap on any tier's share of training levels")
     ap.add_argument("--tier-min", type=float, default=0.05)
+    ap.add_argument("--eval-every", type=int, default=0,
+                    help="every N updates, play the new checkpoint ALONE on held-out maps in the background "
+                         "(training/select_best.py) and keep the best one as <run>/best_eval_policy.pt")
+    ap.add_argument("--eval-episodes", type=int, default=6, help="maps per tier for --eval-every")
+    ap.add_argument("--eval-workers", type=int, default=3)
     ap.add_argument("--il-start", type=float, default=1.0)
     ap.add_argument("--il-end", type=float, default=0.05)
     ap.add_argument("--il-updates", type=int, default=1500)
@@ -206,6 +212,8 @@ def main():
         start_update = ck.get("update", 0)
         tier_w = np.array(ck.get("tier_weights", tier_w))
         print("resumed from", a.resume, "at update", start_update)
+    if a.sched_start < 0:
+        a.sched_start = start_update
     print(f"DoomNet params: {count_params(net):,}  device={device} mem-device={mdev}")
 
     cfg = dict(tiers=list(tier_w), wads=a.wads, wad_prob=a.wad_prob)
@@ -245,6 +253,7 @@ def main():
     solo_ep = (torch.rand(N, generator=gen) < a.solo_prob) & (rollin == 0)  # whole episode without the teacher
     ep_teacher = torch.zeros(N, dtype=torch.bool)  # did the teacher act at all in this episode?
     best_score = -1.0
+    eval_proc = None
 
     for update in range(start_update, a.updates):
         t_start = time.time()
@@ -417,6 +426,16 @@ def main():
             torch.save(ck, run_dir / "latest.pt")
             if (update + 1) % (a.save_every * 4) == 0:
                 torch.save(ck, run_dir / f"ckpt_{update + 1:05d}.pt")
+            if a.eval_every and (update + 1) % a.eval_every == 0 and (eval_proc is None or eval_proc.poll() is not None):
+                import subprocess
+
+                snap = run_dir / f"eval_{update + 1:05d}.pt"
+                torch.save({"model": {k: v.detach().cpu() for k, v in ck["model"].items()}, "update": update + 1}, snap)
+                eval_proc = subprocess.Popen(
+                    [sys.executable, str(ROOT / "training/select_best.py"), "--ckpts", str(snap),
+                     "--episodes", str(a.eval_episodes), "--workers", str(a.eval_workers),
+                     "--log", str(run_dir / "evals.csv"), "--keep-best", str(run_dir / "best_eval_policy.pt")],
+                    stdout=open(run_dir / "evals.log", "a"), stderr=subprocess.STDOUT)
             export(net, odonet, a.export)
             # keep the policy that scores best when playing ALONE (tier-weighted like the evaluation)
             solo = {t: stats.get(f"solo_t{t}") for t in range(1, 5)}
