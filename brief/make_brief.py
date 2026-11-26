@@ -51,8 +51,8 @@ RESULTS = [
     # name, score, tier exit rates (T0..T4), note
     ("Random actions", "n/a", ["20%", "0%", "0%", "0%", "0%"], "25 held-out maps"),
     ("Privileged teacher (training only)", "n/a", ["100%", "40%", "80%", "80%", "40%"], "25 held-out maps; sees the true map"),
-    ("Submitted agent (v2, update 1600)", "5.67", ["63%", "63%", "13%", "0%", "13%"], "40 held-out maps"),
-    ("Best v3 checkpoint (update 2300)", "7.11", ["33%", "50%", "33%", "17%", "33%"], "30 held-out maps"),
+    ("Earlier agent (v2, update 1600)", "4.76", ["90%", "20%", "40%", "30%", "0%"], "50 fresh held-out maps"),
+    ("Submitted agent (v4, update 2800)", "7.27", ["90%", "40%", "70%", "40%", "30%"], "same 50 fresh held-out maps"),
 ]
 
 

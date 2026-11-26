@@ -118,6 +118,7 @@ class Teacher:
         self.strafe_dir = 1
         self.wpn_cd = 0
         self.last_use = 0
+        self.fire_cd = 0
 
     def _los(self, x0: float, y0: float, x1: float, y1: float, ps: dict) -> bool:
         """Line of sight on the level grid: blocked by solid cells and by closed doors."""
@@ -252,6 +253,17 @@ class Teacher:
         if ammo <= 0 and self.wpn_cd == 0 and obs["vitals"][4:8].sum() > 0:
             comps[5] = 1
             self.wpn_cd = 20
+        # Pistol: holding fire spreads the shots (Doom only fires the first shot accurately while the
+        # button stays down), so tap: one step pressed, then released long enough (3 steps = 12 tics)
+        # for A_ReFire to see the button up. Other weapons keep firing while held.
+        if os.environ.get("TEACHER_HOLD_FIRE") == "1":
+            pass  # ablation: old behaviour (hold fire)
+        elif self.fire_cd > 0:
+            self.fire_cd -= 1
+            if int(obs["vitals"][2]) == 2:
+                comps[3] = 0
+        elif comps[3] and int(obs["vitals"][2]) == 2:
+            self.fire_cd = 3
         # USE fires on the press edge: never hold it two steps in a row
         if comps[4] and self.last_use:
             comps[4] = 0
