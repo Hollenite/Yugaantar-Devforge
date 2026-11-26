@@ -6,6 +6,7 @@ Throwaway demo for checking your local setup: it is NOT the submission agent.
     uv run python training/watch_random.py --policy human       # WASD + mouse look, click to shoot
     uv run python training/watch_random.py --policy uniform     # pure uniform random buttons
     uv run python training/watch_random.py --map maps/your.wad:MAP01 --fps 0   # as fast as possible
+    uv run python training/watch_random.py --policy human --pool               # Freedoom-first mix
 
 Left:   160x120 RGB (Tab = stretched depth). The bottom sprite is YOUR weapon, not an enemy.
 Middle: first-person 3D from map sectors + 64 rays. Bright wedge is the 90° entity FOV.
@@ -26,6 +27,8 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import pygame  # noqa: E402  (pygame-ce ships with the template's dependencies)
 
@@ -394,12 +397,15 @@ def vitals_text(obs: dict, info: dict, steps: int, ret: float) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--map", default=str(ROOT / "maps" / "two_rooms.wad") + ":MAP01", help="file.wad[:MAPxx]")
+    ap.add_argument("--pool", action="store_true", help="sample Freedoom-first mix (ignores --map)")
+    ap.add_argument("--generated-frac", type=float, default=None, help="pool: fraction of generated S0–S3 maps")
+    ap.add_argument("--split", choices=("train", "val"), default="train", help="pool: Freedoom train MAP01–24 / val MAP25–32")
     ap.add_argument("--policy", choices=["sticky", "uniform", "human"], default="sticky")
     ap.add_argument("--mouse-sens", type=float, default=0.365, help="mouse yaw sensitivity (vanilla: no pitch)")
     ap.add_argument("--fps", type=float, default=None, help="decisions/s, 0 = unlimited (human defaults to 35)")
     ap.add_argument("--scale", type=int, default=4, help="RGB upscale factor")
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--episode-ticks", type=int, default=2100)
+    ap.add_argument("--episode-ticks", type=int, default=None, help="cap tics (default 2100, or the sampled spec if --pool)")
     ap.add_argument("--episodes", type=int, default=0, help="stop after N episodes (0 = until you quit)")
     ap.add_argument("--screenshot", default=None, help="save a PNG after --shot-steps steps and exit (for testing)")
     ap.add_argument("--shot-steps", type=int, default=120)
@@ -408,13 +414,38 @@ def main() -> int:
 
     if args.fps is None:
         args.fps = 35.0 if args.policy == "human" else 35.0 / S.FRAME_SKIP
-    wad, _, map_name = args.map.partition(":")
     skip = 1 if args.policy == "human" else S.FRAME_SKIP
-    env = make_env(
-        wad, map_name or "MAP01",
-        episode_ticks=args.episode_ticks, frame_skip=skip,
-        analog_look=(args.policy == "human"),
-    )
+    rng = np.random.default_rng(args.seed)
+    tmp_dir = ROOT / ".mapgen_tmp"
+    spec = None
+
+    def open_env(next_spec=None):
+        if args.pool:
+            from training.pool import GENERATED_FRAC, make_training_env, sample_spec
+
+            frac = GENERATED_FRAC if args.generated_frac is None else args.generated_frac
+            spec_ = next_spec or sample_spec(rng, generated_frac=frac, split=args.split)
+            ticks = args.episode_ticks if args.episode_ticks is not None else spec_.episode_ticks
+            env_ = make_training_env(
+                spec_,
+                tmp_dir=tmp_dir,
+                episode_ticks=ticks,
+                frame_skip=skip,
+                analog_look=(args.policy == "human"),
+            )
+            return env_, spec_
+        wad, _, map_name = args.map.partition(":")
+        ticks = 2100 if args.episode_ticks is None else args.episode_ticks
+        env_ = make_env(
+            wad,
+            map_name or "MAP01",
+            episode_ticks=ticks,
+            frame_skip=skip,
+            analog_look=(args.policy == "human"),
+        )
+        return env_, None
+
+    env, spec = open_env()
     policy = HumanPolicy(args.mouse_sens) if args.policy == "human" else RandomPolicy(args.policy, args.seed)
 
     pygame.init()
@@ -423,7 +454,15 @@ def main() -> int:
     data_w = 360
     bar_h = 78 if args.policy == "human" else 56
     screen = pygame.display.set_mode((game_w + geo_w + data_w, game_h + bar_h))
-    pygame.display.set_caption("doom_env: human" if args.policy == "human" else "doom_env: random agent")
+    def _caption():
+        who = "human" if args.policy == "human" else "random agent"
+        if spec is None:
+            return f"doom_env: {who}"
+        if spec.source == "generated":
+            return f"doom_env: {who}  {spec.stage} seed={spec.seed}"
+        return f"doom_env: {who}  freedoom {spec.map}"
+
+    pygame.display.set_caption(_caption())
     if args.policy == "human":
         policy.set_grab(True)
     font = pygame.font.SysFont("menlo,monaco,consolas,dejavu sans mono,monospace", 15)
@@ -466,6 +505,10 @@ def main() -> int:
                     show_3d = not show_3d
                 elif ev.key == pygame.K_r:
                     seed += 1
+                    if args.pool:
+                        env.close()
+                        env, spec = open_env()
+                        pygame.display.set_caption(_caption())
                     obs, info = env.reset(seed=seed)
                     policy.reset()
                     steps, ret = 0, 0.0

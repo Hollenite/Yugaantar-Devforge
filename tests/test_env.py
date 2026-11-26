@@ -14,6 +14,7 @@ FWD = np.array([1, 0, 0, 0, 0, 0, 0, 0, 0], np.int8)
 USE = np.array([0, 0, 0, 0, 0, 0, 0, 1, 0], np.int8)
 NOOP = np.zeros(9, np.int8)
 TURN_L = np.array([0, 0, 0, 0, 1, 0, 0, 0, 0], np.int8)
+ATTACK = np.array([0, 0, 0, 0, 0, 0, 1, 0, 0], np.int8)
 
 
 def wad(tmp_path, grid, name="m.wad"):
@@ -179,6 +180,31 @@ def test_projectiles_are_classified(tmp_path):
             break
     assert {"enemy_projectile", "projectile"} <= seen
     env.close()
+
+
+def test_killing_enemy_does_not_end_episode(tmp_path):
+    """A kill is +0.1 reward only. The map must not reset or terminate until death/exit/timeout."""
+    env = make_env(wad(tmp_path, "#########\n#P.....z#\n#..D....#\n#########"), episode_ticks=2100)
+    obs, _ = env.reset(seed=0)
+    killed = False
+    for _ in range(500):
+        obs, reward, term, trunc, info = env.step(ATTACK)
+        st = env.privileged_state()
+        if st["kills"] >= 1:
+            killed = True
+            assert not term and not trunc
+            assert not info["exit_reached"]
+            assert not st["dead"]
+            _, _, term, trunc, info = env.step(NOOP)
+            st = env.privileged_state()
+            assert not term and not trunc
+            assert not info["exit_reached"]
+            assert not st["dead"]
+            break
+        if term or trunc:
+            break
+    env.close()
+    assert killed, "expected to kill the zombieman without ending the episode"
 
 
 def test_final_step_variables_are_refreshed(tmp_path):
