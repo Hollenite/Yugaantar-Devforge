@@ -54,13 +54,19 @@ def run_episode(env, policy, nav=None, seed=0, max_ticks=None):
         if policy == "teacher":
             from brain.model import comps_to_buttons
 
-            a = comps_to_buttons(torch.tensor(teacher.act(ps, obs)[None]))[0].numpy()
+            mons = None
+            if not os.environ.get("TEACHER_BLIND"):  # TEACHER_BLIND=1 reproduces the old teacher for comparison
+                st = env._game.get_state()
+                mons = [] if st is None else [(o.position_x, o.position_y) for o in st.objects if o.category == "Monster"]
+            a = comps_to_buttons(torch.tensor(teacher.act(ps, obs, mons)[None]))[0].numpy()
         elif policy == "random":
             a = rng.integers(0, 2, 9)
         else:
             a = policy.act(obs)
         obs, _, term, trunc, _ = env.step(a)
+        tic = ps["tic"]
         ps = env.privileged_state()
+        tic = max(tic, ps["tic"])
         visited.add((int(ps["x"] // 64), int(ps["y"] // 64)))
         if ps["door_lock"] is not None:
             for sid in np.nonzero((ps["door_lock"] >= 0) & (ps["sector_ceiling"] - ps["sector_floor"] > 56))[0]:
@@ -68,7 +74,7 @@ def run_episode(env, policy, nav=None, seed=0, max_ticks=None):
         if term or trunc:
             break
     return dict(exit=int(ps["exit_reached"]), death=int(ps["dead"]), keys=int(ps["keys"].sum()), doors=len(doors),
-                kills=ps["kills"] - k0, damage=ps["damage_taken"] - d0, areas=len(visited), tics=ps["tic"])
+                kills=ps["kills"] - k0, damage=ps["damage_taken"] - d0, areas=len(visited), tics=tic)
 
 
 def main():

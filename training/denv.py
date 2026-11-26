@@ -119,7 +119,23 @@ class Teacher:
         self.wpn_cd = 0
         self.last_use = 0
 
-    def act(self, ps: dict, obs: dict) -> np.ndarray:
+    def _los(self, x0: float, y0: float, x1: float, y1: float, ps: dict) -> bool:
+        """Line of sight on the level grid: blocked by solid cells and by closed doors."""
+        nav, lv = self.nav, self.nav.level
+        fl, ce = ps["sector_floor"], ps["sector_ceiling"]
+        n = max(2, int(math.hypot(x1 - x0, y1 - y0) / (CELL / 2)))
+        H, W = lv.walkable.shape
+        for k in range(1, n):
+            t = k / n
+            cy, cx = nav.cell(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
+            if not (0 <= cy < H and 0 <= cx < W) or not lv.walkable[cy, cx]:
+                return False
+            sid = nav.door_cells[cy, cx]
+            if sid >= 0 and fl is not None and sid < len(fl) and ce[sid] - fl[sid] < 40:
+                return False
+        return True
+
+    def act(self, ps: dict, obs: dict, monsters=None) -> np.ndarray:
         nav = self.nav
         x, y, ang = ps["x"], ps["y"], math.radians(ps["angle"])
         stage = nav.stage(ps["keys"])
@@ -205,6 +221,20 @@ class Teacher:
                 if d < 1400 and (best is None or d < best[0]):
                     best = (d, math.degrees(math.atan2(ent["features"][i, 1], ent["features"][i, 2])))
         ammo = float(obs["vitals"][3])
+        health = float(ps["health"])
+        if best is None and monsters:
+            # privileged (training-only): face the nearest live monster we have line of sight to, even if it is
+            # behind us or outside the 90 degree view, instead of walking on while it shoots us in the back
+            near = None
+            for mx, my in monsters:
+                d = math.hypot(mx - x, my - y)
+                if d < 1000 and (near is None or d < near[0]) and self._los(x, y, mx, my, ps):
+                    near = (d, mx, my)
+            if near is not None:
+                rel = math.degrees((math.atan2(near[2] - y, near[1] - x) - ang + math.pi) % (2 * math.pi) - math.pi)
+                comps[2] = 1 if rel > 3 else 2 if rel < -3 else 0
+                if abs(rel) > 40 and self.unstick == 0:
+                    comps[0] = 0
         if best is not None:
             d, rel = best
             comps[2] = 1 if rel > 3 else 2 if rel < -3 else 0
@@ -212,6 +242,8 @@ class Teacher:
                 comps[3] = 1
             if d < 700 and self.unstick == 0:
                 comps[0] = 0 if d > 200 else 2
+                if health < 40 and d < 600:
+                    comps[0] = 2  # low health: back off while still shooting
                 self.strafe_t -= 1
                 if self.strafe_t <= 0:
                     self.strafe_t = int(self.rng.integers(4, 12))
@@ -324,7 +356,17 @@ class TrainEnv:
     def teacher_action(self):
         if self.teacher is None:
             return np.zeros(6, np.int64), False
-        return self.teacher.act(self.prev, self.obs), True
+        return self.teacher.act(self.prev, self.obs, self._monsters()), True
+
+    def _monsters(self):
+        """Privileged: positions of all live monsters (teacher only, never shown to the policy)."""
+        try:
+            st = self.env._game.get_state()
+        except Exception:
+            return []
+        if st is None or st.objects is None:
+            return []
+        return [(o.position_x, o.position_y) for o in st.objects if o.category == "Monster"]
 
     # ------------------------------------------------------------------ step
     def step(self, buttons: np.ndarray):

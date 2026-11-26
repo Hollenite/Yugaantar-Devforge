@@ -146,6 +146,14 @@ def main():
     ap.add_argument("--curiosity", type=float, default=0.002, help="reward per newly revealed EgoMap cell")
     ap.add_argument("--beta-start", type=float, default=0.5, help="prob. of executing the teacher action")
     ap.add_argument("--beta-updates", type=int, default=400)
+    ap.add_argument("--beta-end", type=float, default=0.0, help="floor of the per-step teacher mixing")
+    ap.add_argument("--rollin-prob", type=float, default=0.0,
+                    help="fraction of episodes where the teacher drives the first K steps, then hands over to the "
+                         "policy (gives the policy practice in late-level states: holding a key, near a locked door)")
+    ap.add_argument("--rollin-max", type=int, default=450, help="K ~ U(20, rollin-max) decisions")
+    ap.add_argument("--sched-start", type=int, default=0, help="update at which the beta/il schedules start")
+    ap.add_argument("--tier-max", type=float, default=0.6, help="cap on any tier's share of training levels")
+    ap.add_argument("--tier-min", type=float, default=0.05)
     ap.add_argument("--il-start", type=float, default=1.0)
     ap.add_argument("--il-end", type=float, default=0.05)
     ap.add_argument("--il-updates", type=int, default=1500)
@@ -191,6 +199,8 @@ def main():
         net.load_state_dict(ck["model"])
         if "opt" in ck:
             opt.load_state_dict(ck["opt"])
+            for g in opt.param_groups:  # use this run's --lr, not the one saved in the checkpoint
+                g["lr"] = a.lr
         start_update = ck.get("update", 0)
         tier_w = np.array(ck.get("tier_weights", tier_w))
         print("resumed from", a.resume, "at update", start_update)
@@ -208,7 +218,7 @@ def main():
         done = torch.tensor([it[2] for it in items], dtype=torch.bool)
         tch = torch.tensor(np.stack([it[3] for it in items]), dtype=torch.long)
         tok = torch.tensor([it[4] for it in items], dtype=torch.bool)
-        infos = [it[5] for it in items if it[5] is not None]
+        infos = [(i, it[5]) for i, it in enumerate(items) if it[5] is not None]
         return obs, rew, done, tch, tok, infos
 
     obs, _, fresh, tch, tok, _ = unpack(venv.reset())
@@ -225,11 +235,19 @@ def main():
     logw = csv.writer(log_f)
     gen = torch.Generator().manual_seed(a.seed)
 
+    def new_rollin(n):
+        k = torch.randint(20, max(21, a.rollin_max), (n,), generator=gen)
+        return torch.where(torch.rand(n, generator=gen) < a.rollin_prob, k, torch.zeros_like(k))
+
+    rollin = new_rollin(N)              # teacher-driven decisions left at the start of each episode
+    ep_teacher = torch.zeros(N, dtype=torch.bool)  # did the teacher act at all in this episode?
+    best_score = -1.0
+
     for update in range(start_update, a.updates):
         t_start = time.time()
-        frac_b = update / max(1, a.beta_updates)
-        beta = linear(a.beta_start, 0.0, frac_b)
-        il_coef = linear(a.il_start, a.il_end, update / max(1, a.il_updates))
+        su = update - a.sched_start
+        beta = linear(a.beta_start, a.beta_end, su / max(1, a.beta_updates))
+        il_coef = linear(a.il_start, a.il_end, su / max(1, a.il_updates))
 
         buf = defaultdict(list)
         h0_store = []
@@ -244,7 +262,7 @@ def main():
                 pc = prev_comps * (~fresh).long().unsqueeze(1)
                 logits, value, h = net.step(obs_d, maps.to(device), pc.to(device), h)
                 pol = sample(logits.cpu(), generator=gen)
-                use_t = (torch.rand(N, generator=gen) < beta) & tok
+                use_t = ((torch.rand(N, generator=gen) < beta) | (rollin > 0)) & tok
                 exec_c = torch.where(use_t.unsqueeze(1), tch, pol)
                 lp = log_prob(logits.cpu(), exec_c)
             for k, v in obs.items():
@@ -269,11 +287,20 @@ def main():
             stats["r_int"].append(float(r_int.mean()))
             fresh = done
             prev_comps = exec_c
-            for inf in infos:
+            ep_teacher |= use_t
+            rollin = (rollin - 1).clamp_min(0)
+            for i, inf in infos:
                 tier_exit[inf["tier"]].append(inf["exit"])
                 for k in ("ret", "steps", "kills", "keys", "doors", "explore", "exit", "death"):
                     stats[k].append(inf[k])
                 stats[f"exit_t{inf['tier']}"].append(inf["exit"])
+                if not ep_teacher[i]:  # the policy played this whole episode alone: the honest number
+                    stats["solo_exit"].append(inf["exit"])
+                    stats["solo_death"].append(inf["death"])
+                    stats[f"solo_t{inf['tier']}"].append(inf["exit"])
+            if done.any():
+                ep_teacher[done] = False
+                rollin[done] = new_rollin(int(done.sum()))
 
         # ---- returns / advantages
         with torch.no_grad():
@@ -354,7 +381,8 @@ def main():
         for t, r in rates.items():
             if r is not None:
                 new_w[t] = tier_w[t] * (0.9 if r > 0.85 else 1.1 if r < 0.6 else 1.0)
-        new_w = np.clip(new_w / new_w.sum(), 0.05, 0.6)
+        for _ in range(5):  # clip to [tier_min, tier_max] and renormalise (a few passes converge)
+            new_w = np.clip(new_w / new_w.sum(), a.tier_min, a.tier_max)
         new_w /= new_w.sum()
         if np.abs(new_w - tier_w).max() > 0.01:
             tier_w = new_w
@@ -367,12 +395,15 @@ def main():
                 f"exit {m.get('exit', 0):.2f} death {m.get('death', 0):.2f} kills {m.get('kills', 0):.2f} "
                 f"keys {m.get('keys', 0):.2f} doors {m.get('doors', 0):.2f} expl {m.get('explore', 0):5.1f} | "
                 + " ".join(f"t{t}:{m.get(f'exit_t{t}', float('nan')):.2f}" for t in range(5))
+                + f" | solo {m.get('solo_exit', float('nan')):.2f} "
+                + " ".join(f"s{t}:{m.get(f'solo_t{t}', float('nan')):.2f}" for t in range(1, 5))
                 + f" | pg {lm['pg']:.3f} v {lm['v']:.3f} ent {lm['ent']:.2f} il {lm['il']:.3f} kl {lm['kl']:.4f}")
         print(line, flush=True)
         logw.writerow([update, fps, beta, il_coef, *[m.get(k, float('nan')) for k in
                        ("ret", "exit", "death", "kills", "keys", "doors", "explore")],
                        *[m.get(f"exit_t{t}", float("nan")) for t in range(5)], *[lm[k] for k in ("pg", "v", "ent", "il", "kl")],
-                       *tier_w])
+                       *tier_w, m.get("solo_exit", float("nan")), m.get("solo_death", float("nan")),
+                       *[m.get(f"solo_t{t}", float("nan")) for t in range(5)]])
         log_f.flush()
 
         if (update + 1) % a.save_every == 0 or update == a.updates - 1:
@@ -382,6 +413,15 @@ def main():
             if (update + 1) % (a.save_every * 4) == 0:
                 torch.save(ck, run_dir / f"ckpt_{update + 1:05d}.pt")
             export(net, odonet, a.export)
+            # keep the policy that scores best when playing ALONE (tier-weighted like the evaluation)
+            solo = {t: stats.get(f"solo_t{t}") for t in range(1, 5)}
+            if all(v is not None and len(v) >= 15 for v in solo.values()):
+                score = sum(t * float(np.mean(solo[t])) for t in range(1, 5)) / 10
+                if score > best_score:
+                    best_score = score
+                    export(net, odonet, run_dir / "best_policy.pt")
+                    torch.save(ck, run_dir / "best.pt")
+                    print(f"new best solo score {score:.3f} at update {update + 1} -> {run_dir / 'best_policy.pt'}", flush=True)
 
     venv.close()
 
