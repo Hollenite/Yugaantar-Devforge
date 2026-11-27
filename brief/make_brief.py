@@ -52,7 +52,8 @@ RESULTS = [
     ("Random actions", "n/a", ["20%", "0%", "0%", "0%", "0%"], "25 held-out maps"),
     ("Privileged teacher (training only)", "n/a", ["100%", "40%", "80%", "80%", "40%"], "25 held-out maps; sees the true map"),
     ("Earlier agent (v2, update 1600)", "4.76", ["90%", "20%", "40%", "30%", "0%"], "50 fresh held-out maps"),
-    ("Submitted agent (v4, update 2800)", "7.27", ["90%", "40%", "70%", "40%", "30%"], "same 50 fresh held-out maps"),
+    ("Best single checkpoint (v4, update 2800)", "7.27", ["90%", "40%", "70%", "40%", "30%"], "same 50 fresh held-out maps"),
+    ("Submitted: weight average of v4 2600\u20133000", "7.80", ["90%", "30%", "60%", "40%", "10%"], "same 50 maps; 7.75 vs 6.49 on 60 more"),
 ]
 
 
@@ -182,7 +183,8 @@ def build():
             "annealing, and 10% of episodes on real Freedoom maps (MAP04–10) for visual/layout diversity."),
           B("<b>Honest model selection.</b> Every 100 updates a background job plays the student <i>solo</i> on "
             "held-out generated maps and on Freedoom MAP01–03 (never trained on) through the real "
-            "<font face='Courier'>DoomAgent</font> code. The submitted weights are the head-to-head winner.")]
+            "<font face='Courier'>DoomAgent</font> code. The submitted weights are the head-to-head winner: an average of five checkpoints from the end of training "
+            "(stochastic weight averaging, Izmailov et al. 2018), which beat every single checkpoint.")]
 
     rows = [[P("<b>Policy</b>", cellb), P("<b>Score</b>", cellb)]
             + [P(f"<b>T{i}</b>", cellb) for i in range(5)] + [P("<b>Test set</b>", cellb)]]
