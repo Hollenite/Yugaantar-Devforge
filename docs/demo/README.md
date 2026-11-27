@@ -1,6 +1,6 @@
-# Agent demo (update 2600, unseen generated maps)
+# Agent demo (v4 snapshot, unseen generated maps)
 
-Phone capture of the trained policy (`TRAINED AGENT v4, update 2600`) in `record_demo.py --agent`: RGB, EgoMap, rays.
+Phone capture of a v4 policy in `record_demo.py --agent`: RGB, EgoMap, rays. Shipped weights on `main` are the SWA average of v4 updates 2600–3000, not this exact snapshot.
 
 **README loop:** [preview.gif](preview.gif) (48s, autoplays on GitHub) · **MP4:** [showcase.mp4](showcase.mp4)
 

@@ -8,14 +8,14 @@ Weights and code live in this repo. Evaluation uses the official `doom_env` wrap
 
 **Demo (48s, loops in the README):** [docs/demo/showcase.mp4](docs/demo/showcase.mp4) — [clip list](docs/demo/README.md)
 
-Left: RGB. Centre: the agent’s own EgoMap. Right: rays / entities / vitals. Label in the recording: `TRAINED AGENT (v4, update 2600)` on **unseen** generated tiers.
+Left: RGB. Centre: the agent’s own EgoMap. Right: rays / entities / vitals. The GIF is a live run of an earlier v4 snapshot; **shipped weights** are the SWA average of v4 updates 2600–3000 (`submission/weights/policy.pt`).
 
 ## Status
 
 Shipped on `main`:
 
 - `DoomAgent` in [`submission/agent.py`](submission/agent.py) + [`submission/brain/`](submission/brain/)
-- Git LFS weights: [`submission/weights/policy.pt`](submission/weights/policy.pt), [`odonet.pt`](submission/weights/odonet.pt)
+- Git LFS weights: [`submission/weights/policy.pt`](submission/weights/policy.pt) (SWA of v4 2600–3000), [`odonet.pt`](submission/weights/odonet.pt)
 - Training: recurrent PPO + privileged teacher ([`training/ppo.py`](training/ppo.py)), procedural levels ([`training/levelgen.py`](training/levelgen.py)), Freedoom map pool ([`training/pool.py`](training/pool.py))
 - 2-page brief: [`brief/Yugaantar_DOOM_brief.pdf`](brief/Yugaantar_DOOM_brief.pdf)
 
@@ -38,7 +38,7 @@ git lfs install
 uv sync
 uv run python validate.py
 # watch the trained agent (RGB | EgoMap | rays)
-uv run python training/record_demo.py --live --agent submission/weights/policy.pt --label "(v4, update 2600)"
+uv run python training/record_demo.py --live --agent submission/weights/policy.pt --label "(SWA v4 2600-3000)"
 # held-out generated maps
 uv run python training/evaluate.py --policy agent --episodes 5
 # play yourself (WASD + mouse; R = new map)

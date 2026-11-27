@@ -53,7 +53,7 @@ RESULTS = [
     ("Privileged teacher (training only)", "n/a", ["100%", "40%", "80%", "80%", "40%"], "25 held-out maps; sees the true map"),
     ("Earlier agent (v2, update 1600)", "4.76", ["90%", "20%", "40%", "30%", "0%"], "50 fresh held-out maps"),
     ("Best single checkpoint (v4, update 2800)", "7.27", ["90%", "40%", "70%", "40%", "30%"], "same 50 fresh held-out maps"),
-    ("Submitted: weight average of v4 2600\u20133000", "7.80", ["90%", "30%", "60%", "40%", "10%"], "same 50 maps; 7.75 vs 6.49 on 60 more"),
+    ("Submitted (SWA of v4 2600–3000)", "7.80", ["90%", "30%", "60%", "40%", "10%"], "same 50 maps; 7.75 vs 6.49 on 60 more"),
 ]
 
 
@@ -126,11 +126,11 @@ def diagram(width):
 def build():
     doc = SimpleDocTemplate(str(OUT), pagesize=A4, leftMargin=17 * mm, rightMargin=17 * mm, topMargin=14 * mm,
                             bottomMargin=13 * mm, title="Yugaantar: a DOOM agent that maps as it moves",
-                            author="Team Yugaantar")
+                            author="Team We Who Remains — Yugaantar")
     W = A4[0] - 34 * mm
     s = []
     s += [P("Yugaantar: a DOOM agent that maps as it moves", h1),
-          P("DevForge Track 1, “Can It Play DOOM?” · Team Yugaantar · "
+          P("DevForge Track 1, “Can It Play DOOM?” · Team We Who Remains — Yugaantar · "
             "github.com/Hollenite/Yugaantar-Devforge", sub)]
 
     s += [P("What makes it different", h2),
@@ -192,16 +192,17 @@ def build():
         rows.append([P(name, cell), P(score, cell)] + [P(e, cell) for e in ex] + [P(note, small)])
     t = Table(rows, colWidths=[54 * mm, 14 * mm] + [12 * mm] * 5 + [W - 128 * mm])
     t.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, 0), 0.8, INK), ("LINEBELOW", (0, 1), (-1, -1), 0.4, RULE),
-                           ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-                           ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5), ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3)]))
+                           ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("TOPPADDING", (0, 0), (-1, -1), 1.8),
+                           ("BOTTOMPADDING", (0, 0), (-1, -1), 1.8), ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3)]))
     s += [KeepTogether([P("Results", h2),
                         P("Exit rate per tier (T0 empty rooms → T4 gauntlet) on generated maps never seen in "
-                          "training; score = 10 per exit + progression, kills and exploration − deaths, "
-                          "harder tiers weighted more.", small), Spacer(1, 3), t])]
-    s += [Spacer(1, 4),
-          P("<b>Limits and next steps.</b> The keycard tier is the weakest, and full Freedoom campaign maps are still "
-            "too long for a solo exit. Next: longer solo-only fine-tuning on keycard levels, more real-map "
-            "training, and a wider memory crop for very large maps.")]
+                          "training. Score is <b>our local heuristic</b> (not the hidden judge weights): "
+                          "+10 exit, +1.5 key, +0.5 door, +0.3 kill, +0.03 area, −2 death, −0.01 damage; "
+                          "harder tiers weighted more.", small), Spacer(1, 2), t])]
+    s += [Spacer(1, 3),
+          P("<b>Limits.</b> Submitted T4 exit rate is <b>10%</b> on this set — not a full gauntlet solver. "
+            "Hidden eval maps (6 maps, tiers 1–4) will differ. Keycards are found more often than the matching "
+            "lock is finished. Full Freedoom campaign maps are still too long for a solo exit.")]
     s += [P("Rules compliance", h2),
           P("All decisions come from the two trained networks; the EgoMap is deterministic bookkeeping that the "
             "network reads, never searches. Privileged information (true map, positions, monster list) is used "
